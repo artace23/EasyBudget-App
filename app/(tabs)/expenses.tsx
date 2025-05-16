@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { addDoc, collection, doc, getDocs, query, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, query, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { db } from '../firebaseConfig';
 
 export default function ExpensesScreen() {
   const [expenses, setExpenses] = useState([]);
+  const [monthlyBudget, setMonthlyBudget] = useState(0);
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [modalVisible, setModalVisible] = useState(false);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState(null);
@@ -19,10 +21,14 @@ export default function ExpensesScreen() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  // ADD THESE TWO LINES:
+  const [budgetModalVisible, setBudgetModalVisible] = useState(false);
+  const [newBudget, setNewBudget] = useState('');
 
   useEffect(() => {
     loadExpenses();
-  }, []);
+    getCurrentMonthBudget();
+  }, [currentDate]);
 
   const loadExpenses = async () => {
     try {
@@ -93,6 +99,101 @@ export default function ExpensesScreen() {
     }
   };
 
+  const getCurrentMonthBudget = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      const budgetRef = collection(db, 'monthlyBudgets');
+      const month = currentDate.getMonth() + 1;
+      const year = currentDate.getFullYear();
+      
+      const q = query(
+        budgetRef, 
+        where('userId', '==', userId),
+        where('month', '==', month),
+        where('year', '==', year)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const budgetData = querySnapshot.docs[0].data();
+        setMonthlyBudget(budgetData.amount || 0);
+      }
+    } catch (error) {
+      console.error('Error loading monthly budget:', error);
+    }
+  };
+
+  const formatDate = (date) => {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return `${months[date.getMonth()]} ${date.getFullYear()}`;
+  };
+
+  const handlePreviousMonth = () => {
+    setCurrentDate(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(prev.getMonth() - 1);
+      return newDate;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(prev.getMonth() + 1);
+      return newDate;
+    });
+  };
+
+  // Add this new function to handle budget updates
+  const handleAddBudget = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      const budgetRef = collection(db, 'monthlyBudgets');
+      const month = currentDate.getMonth() + 1;
+      const year = currentDate.getFullYear();
+      
+      // Check if budget already exists for this month
+      const q = query(
+        budgetRef,
+        where('userId', '==', userId),
+        where('month', '==', month),
+        where('year', '==', year)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        // Update existing budget
+        const budgetDoc = querySnapshot.docs[0];
+        await updateDoc(doc(db, 'monthlyBudgets', budgetDoc.id), {
+          amount: Number(newBudget),
+          updatedAt: Timestamp.now()
+        });
+      } else {
+        // Create new budget
+        await addDoc(budgetRef, {
+          userId,
+          amount: Number(newBudget),
+          month,
+          year,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        });
+      }
+      
+      setBudgetModalVisible(false);
+      setNewBudget('');
+      getCurrentMonthBudget();
+    } catch (error) {
+      console.error('Error updating budget:', error);
+      Alert.alert('Error', 'Failed to update budget');
+    }
+  };
+
+  // Modify the Amount Display section to use the new modal
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -108,27 +209,46 @@ export default function ExpensesScreen() {
 
       {/* Month Selector */}
       <TouchableOpacity style={styles.monthSelector}>
-        <Text style={styles.monthText}>January 2024</Text>
-        <Ionicons name="chevron-down" size={20} color="#666" />
+        <Text style={styles.monthText}>{formatDate(currentDate)}</Text>
       </TouchableOpacity>
 
       {/* Amount Display */}
-      <Text style={styles.amountText}>₱5,000</Text>
+      <View style={styles.amountContainer}>
+        <Text style={styles.amountText}>₱{monthlyBudget.toLocaleString()}</Text>
+        <TouchableOpacity 
+          style={styles.budgetAddButton}
+          onPress={() => setBudgetModalVisible(true)}
+        >
+          <Ionicons name="add-circle" size={24} color="#6B4EFF" />
+        </TouchableOpacity>
+      </View>
 
       {/* Budget Progress */}
       <View style={styles.budgetCard}>
-        <View style={styles.budgetRow}>
-          <Text style={styles.budgetLabel}>Left to spend</Text>
-          <Text style={styles.budgetLabel}>Monthly budget</Text>
-        </View>
-        <View style={styles.budgetRow}>
-          <Text style={styles.budgetAmount}>₱5,000</Text>
-          <Text style={styles.budgetAmount}>₱10,000</Text>
+        <View>
+          <View>
+            <View style={styles.budgetRow}>
+              <Text style={styles.budgetLabel}>Left to spend</Text>
+              <Text style={styles.budgetLabel}>Monthly budget</Text>
+            </View>
+            <View style={styles.budgetRow}>
+              <Text style={styles.budgetAmount}>
+                ₱{(monthlyBudget - expenses.reduce((sum, exp) => sum + (exp.spent || 0), 0)).toLocaleString()}
+              </Text>
+              <Text style={styles.budgetAmount}>₱{monthlyBudget.toLocaleString()}</Text>
+            </View>
+          </View>
         </View>
         <View style={styles.progressBarContainer}>
           <View style={styles.progressBar}>
-            <View style={[styles.progressFillLeft, { width: '25%' }]} />
-            <View style={[styles.progressFillRight, { width: '25%' }]} />
+            <View 
+              style={[
+                styles.progressFillLeft, 
+                { 
+                  width: `${(expenses.reduce((sum, exp) => sum + (exp.spent || 0), 0) / monthlyBudget) * 100}%` 
+                }
+              ]} 
+            />
           </View>
         </View>
       </View>
@@ -242,6 +362,47 @@ export default function ExpensesScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Budget Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={budgetModalVisible}
+        onRequestClose={() => setBudgetModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Set Monthly Budget</Text>
+            <Text style={styles.modalSubtitle}>
+              {formatDate(currentDate)}
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Budget Amount"
+              keyboardType="numeric"
+              value={newBudget}
+              onChangeText={setNewBudget}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]} 
+                onPress={() => {
+                  setBudgetModalVisible(false);
+                  setNewBudget('');
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.addButton]} 
+                onPress={handleAddBudget}
+              >
+                <Text style={styles.addButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Delete Confirmation Modal */}
       <Modal
         animationType="fade"
@@ -339,20 +500,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 16,
     marginBottom: 16,
   },
   monthText: {
     fontSize: 16,
     color: '#666',
     fontWeight: '500',
+    minWidth: 120,
+    textAlign: 'center',
+  },
+  amountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    gap: 8,
   },
   amountText: {
     fontSize: 48,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 24,
     color: '#000',
+  },
+  budgetAddButton: {
+    padding: 4,
   },
   budgetCard: {
     marginHorizontal: 20,

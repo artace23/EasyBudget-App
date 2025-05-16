@@ -1,7 +1,61 @@
-import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { addDoc, collection, deleteDoc, doc, getDocs } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { db } from '../firebaseConfig'; // Ensure this path is correct
 
 export default function BillScreen() {
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [newSubscription, setNewSubscription] = useState({ name: '', price: '' });
+  const [modalVisible, setModalVisible] = useState(false);
+
+  useEffect(() => {
+    loadSubscriptions();
+  }, []);
+
+  const loadSubscriptions = async () => {
+    try {
+      const subscriptionsRef = collection(db, 'subscriptions');
+      const querySnapshot = await getDocs(subscriptionsRef);
+      const subscriptionsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSubscriptions(subscriptionsData);
+    } catch (error) {
+      console.error('Error loading subscriptions:', error);
+    }
+  };
+
+  const addSubscription = async () => {
+    if (newSubscription.name && newSubscription.price) {
+      try {
+        const subscriptionsRef = collection(db, 'subscriptions');
+        await addDoc(subscriptionsRef, {
+          ...newSubscription,
+          price: Number(newSubscription.price)
+        });
+        setNewSubscription({ name: '', price: '' });
+        setModalVisible(false);
+        loadSubscriptions(); // Refresh the list
+      } catch (error) {
+        console.error('Error adding subscription:', error);
+      }
+    }
+  };
+
+  const deleteSubscription = async (id) => {
+    try {
+      const subscriptionRef = doc(db, 'subscriptions', id);
+      await deleteDoc(subscriptionRef);
+      loadSubscriptions(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting subscription:', error);
+    }
+  };
+
+  const totalMonthlyPayment = subscriptions.reduce((total, sub) => total + sub.price, 0);
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -10,7 +64,7 @@ export default function BillScreen() {
           <Ionicons name="chevron-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Bill</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => setModalVisible(true)}>
           <Ionicons name="add" size={24} color="#000" />
         </TouchableOpacity>
       </View>
@@ -18,72 +72,72 @@ export default function BillScreen() {
       {/* Monthly Payment Section */}
       <View style={styles.paymentSection}>
         <Text style={styles.paymentLabel}>Your monthly payment</Text>
-        <Text style={styles.paymentSubLabel}>for subcriptions</Text>
-        <Text style={styles.totalAmount}>₱2,447</Text>
+        <Text style={styles.paymentSubLabel}>for subscriptions</Text>
+        <Text style={styles.totalAmount}>₱{totalMonthlyPayment.toLocaleString()}</Text>
       </View>
+
+      {/* Add Subscription Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add New Subscription</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Subscription Name"
+              value={newSubscription.name}
+              onChangeText={(text) => setNewSubscription(prev => ({ ...prev, name: text }))}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Price"
+              keyboardType="numeric"
+              value={newSubscription.price}
+              onChangeText={(text) => setNewSubscription(prev => ({ ...prev, price: text }))}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]} 
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.addButton]} 
+                onPress={addSubscription}
+              >
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Subscriptions List */}
-      <View style={styles.subscriptionsList}>
-        {/* Globe Fiber Plan */}
-        <TouchableOpacity style={styles.subscriptionItem}>
-          <View style={styles.subscriptionContent}>
-            <Image
-              source={{ uri: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/45/Globe_Telecom.svg/1200px-Globe_Telecom.svg.png' }}
-              style={styles.subscriptionIcon}
-            />
-            <View style={styles.subscriptionDetails}>
-              <Text style={styles.subscriptionName}>Globe Fiber Plan</Text>
-              <Text style={styles.subscriptionPrice}>₱1,499/mo</Text>
+      <FlatList
+        data={subscriptions}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.subscriptionItem}>
+            <View style={styles.subscriptionContent}>
+              <View style={styles.subscriptionIcon}>
+                <Text style={styles.subscriptionIconText}>{item.name.charAt(0)}</Text>
+              </View>
+              <View style={styles.subscriptionDetails}>
+                <Text style={styles.subscriptionName}>{item.name}</Text>
+                <Text style={styles.subscriptionPrice}>₱{item.price}/mo</Text>
+              </View>
+              <TouchableOpacity onPress={() => deleteSubscription(item.id)}>
+                <Ionicons name="trash" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#666" />
-        </TouchableOpacity>
-
-        {/* Netflix */}
-        <TouchableOpacity style={styles.subscriptionItem}>
-          <View style={styles.subscriptionContent}>
-            <Image
-              source={{ uri: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.png' }}
-              style={styles.subscriptionIcon}
-            />
-            <View style={styles.subscriptionDetails}>
-              <Text style={styles.subscriptionName}>Netflix</Text>
-              <Text style={styles.subscriptionPrice}>₱560/mo</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#666" />
-        </TouchableOpacity>
-
-        {/* Vivamax */}
-        <TouchableOpacity style={styles.subscriptionItem}>
-          <View style={styles.subscriptionContent}>
-            <Image
-              source={{ uri: 'https://play-lh.googleusercontent.com/GhGX8GN8pqZjhkZQywu2hvq9rHUGh7ZGYJg_4KHHtTZI0WUx5FrLkS6IlgJqus6gLg' }}
-              style={styles.subscriptionIcon}
-            />
-            <View style={styles.subscriptionDetails}>
-              <Text style={styles.subscriptionName}>Vivamax payment</Text>
-              <Text style={styles.subscriptionPrice}>₱149/mo</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#666" />
-        </TouchableOpacity>
-
-        {/* Spotify */}
-        <TouchableOpacity style={styles.subscriptionItem}>
-          <View style={styles.subscriptionContent}>
-            <Image
-              source={{ uri: 'https://storage.googleapis.com/pr-newsroom-wp/1/2018/11/Spotify_Logo_RGB_Green.png' }}
-              style={styles.subscriptionIcon}
-            />
-            <View style={styles.subscriptionDetails}>
-              <Text style={styles.subscriptionName}>Spotify</Text>
-              <Text style={styles.subscriptionPrice}>₱239/mo</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#666" />
-        </TouchableOpacity>
-      </View>
+          </TouchableOpacity>
+        )}
+      />
     </View>
   );
 }
@@ -123,6 +177,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#000',
   },
+  input: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    fontSize: 16,
+    color: '#333',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
   subscriptionsList: {
     paddingHorizontal: 20,
   },
@@ -135,6 +200,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0F0F0',
   },
   subscriptionContent: {
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
@@ -142,8 +208,16 @@ const styles = StyleSheet.create({
   subscriptionIcon: {
     width: 40,
     height: 40,
-    borderRadius: 8,
+    borderRadius: 20,
+    backgroundColor: '#6B4EFF',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
+  },
+  subscriptionIconText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   subscriptionDetails: {
     flex: 1,
@@ -157,5 +231,99 @@ const styles = StyleSheet.create({
   subscriptionPrice: {
     fontSize: 14,
     color: '#666',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end', // Changed from 'center' to 'flex-end'
+    padding: 0, // Remove padding to allow modal to touch bottom
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    padding: 24,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalSubtitle: {
+    fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  modalInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    fontSize: 16,
+    color: '#333',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalButton: {
+    flex: 1,
+    height: 56,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  cancelButton: {
+    backgroundColor: '#ccc',
+    marginRight: 10,
+  },
+  addButton: {
+    backgroundColor: '#6B4EFF',
+  },
+  cancelButtonText: {
+    color: '#fff',
+  },
+  addButtonText: {
+    color: '#fff',
   },
 });
