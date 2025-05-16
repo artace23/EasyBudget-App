@@ -198,9 +198,9 @@ export default function ExpensesScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity>
+        <View>
           <Ionicons name="chevron-back" size={24} color="#000" />
-        </TouchableOpacity>
+        </View>
         <Text style={styles.headerTitle}>Expenses</Text>
         <TouchableOpacity onPress={() => setModalVisible(true)}>
           <Ionicons name="add" size={24} color="#000" />

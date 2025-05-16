@@ -1,4 +1,4 @@
-package com.artace23.easybudgetapp
+package com.easybudget.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

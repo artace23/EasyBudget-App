@@ -1,4 +1,4 @@
-package com.artace23.easybudgetapp
+package com.easybudget.app
 
 import android.app.Application
 import android.content.res.Configuration
