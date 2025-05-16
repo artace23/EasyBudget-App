@@ -17,8 +17,11 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#666',
         headerShown: false,
       }}>
-      <Tabs.Screen
+        <Tabs.Screen
         name="index"
+      />
+      <Tabs.Screen
+        name="overview"
         options={{
           title: 'Overview',
           tabBarIcon: ({ color, size }) => (
@@ -29,7 +32,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="expenses"
         options={{
-          title: 'This Month',
+          title: 'Expenses',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
           ),
@@ -38,7 +41,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="offers"
         options={{
-          title: 'Offers',
+          title: 'Bill',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="gift-outline" size={size} color={color} />
           ),

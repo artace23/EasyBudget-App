@@ -1,6 +1,8 @@
 import { StyleSheet, View, Text, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
+import React, { useState, useEffect } from'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 const circleSize = width * 0.85;
@@ -11,6 +13,25 @@ const progress = (660 - 400) / (800 - 400); // Score progress calculation
 
 export default function CreditScreen() {
   const progressStroke = circumference - (progress * circumference);
+  const [creditData, setCreditData] = useState({
+    score: 660,
+    lastUpdate: '20 December 2025'
+  });
+
+  useEffect(() => {
+    loadCreditData();
+  }, []);
+
+  const loadCreditData = async () => {
+    try {
+      const storedData = await AsyncStorage.getItem('creditData');
+      if (storedData) {
+        setCreditData(JSON.parse(storedData));
+      }
+    } catch (error) {
+      console.error('Error loading credit data:', error);
+    }
+  };
 
   return (
     <View style={styles.container}>

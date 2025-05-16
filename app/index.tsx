@@ -1,14 +1,62 @@
-import { StyleSheet, View, Text, TouchableOpacity, TextInput } from 'react-native';
-import { router } from 'expo-router';
-import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import { initializeApp } from "firebase/app";
+import { collection, getDocs, getFirestore, query, where } from "firebase/firestore";
+import { useState } from 'react';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDM5jqi79REMCfI2s3cYBqY6lLRdPz6dik",
+  authDomain: "easybudget-app.firebaseapp.com",
+  projectId: "easybudget-app",
+  storageBucket: "easybudget-app.firebasestorage.app",
+  messagingSenderId: "254138761596",
+  appId: "1:254138761596:web:ebd2a5f8a55c2610e2a4f9",
+  measurementId: "G-Y8SW1GSS3C"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    router.replace('/(tabs)');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Query Firestore for user with matching email and password
+      const usersRef = collection(db, 'Users');
+      const q = query(usersRef, where('email', '==', email), where('password', '==', password));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        // User found
+        const userData = querySnapshot.docs[0].data();
+        
+        // Store user data in AsyncStorage
+        await AsyncStorage.setItem('userToken', email);
+        await AsyncStorage.setItem('userId', querySnapshot.docs[0].id);
+        
+        // Navigate to overview screen
+        router.replace('/(tabs)/overview');
+      } else {
+        Alert.alert('Error', 'Invalid email or password');
+      }
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,10 +98,11 @@ export default function Login() {
 
         {/* Login Button */}
         <TouchableOpacity 
-          style={styles.button}
+          style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleLogin}
+          disabled={loading}
         >
-          <Text style={styles.buttonText}>Login</Text>
+          <Text style={styles.buttonText}>{loading ? 'Logging in...' : 'Login'}</Text>
         </TouchableOpacity>
 
         {/* Forgot Password */}
@@ -149,5 +198,8 @@ const styles = StyleSheet.create({
     color: '#6B4EFF',
     fontSize: 16,
     fontWeight: '500',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
 });
