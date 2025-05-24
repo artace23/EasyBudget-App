@@ -1,6 +1,6 @@
-# Welcome to your Expo app 👋
+# EasyBudget App 💰
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A simple and intuitive budgeting app built with [Expo](https://expo.dev) and React Native.
 
 ## Get started
 
